@@ -1,9 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { BOOKING_COLORS, Hotel } from '@/constants/booking';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { Hotel } from '@/constants/booking';
-import { BOOKING_COLORS } from '@/constants/booking';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface HotelCardProps {
   hotel: Hotel;
@@ -40,9 +39,9 @@ export const HotelCard: React.FC<HotelCardProps> = ({
           }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons
-            name={hotel.isFavorite ? 'heart' : 'heart-outline'}
+            name={'heart'}
             size={24}
-            color={hotel.isFavorite ? BOOKING_COLORS.HEART : '#FFFFFF'}
+            color={'#bc2828ff'}
           />
         </TouchableOpacity>
         <View style={styles.ratingBadge}>
@@ -53,17 +52,17 @@ export const HotelCard: React.FC<HotelCardProps> = ({
 
       <View style={styles.content}>
         <Text style={styles.hotelName} numberOfLines={1}>
-          {hotel.name}
+          {hotel.hotelName}
         </Text>
         <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={14} color={BOOKING_COLORS.TEXT_SECONDARY} />
           <Text style={styles.location} numberOfLines={1}>
-            {hotel.location}
+            {hotel.address}
           </Text>
         </View>
         <View style={styles.footer}>
-          <Text style={styles.reviews}>({hotel.reviewCount} Reviews)</Text>
-          <Text style={styles.price}>${hotel.price}/night</Text>
+          <Text style={styles.reviews}>({hotel.rating} Reviews)</Text>
+          <Text style={styles.price}>${hotel.pricePerNight}/night</Text>
         </View>
       </View>
     </TouchableOpacity>

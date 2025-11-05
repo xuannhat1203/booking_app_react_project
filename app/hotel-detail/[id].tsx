@@ -8,13 +8,16 @@ import {
   StatusBar,
   FlatList,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { HotelCard } from '@/components/booking/hotel-card';
-import { BOOKING_COLORS, BEST_HOTELS } from '@/constants/booking';
+import { BOOKING_COLORS, Hotel } from '@/constants/booking';
+import { getHotelById } from '@/apis/roomApi';
+import { useQuery } from '@tanstack/react-query';
 
 const HOTEL_PHOTOS = [
   'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400',
@@ -29,8 +32,34 @@ export default function HotelDetailScreen(): React.JSX.Element {
   const { width } = useWindowDimensions();
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
 
-  // Find hotel by id (in real app, this would be from API)
-  const hotel = BEST_HOTELS.find((h) => h.id === id) || BEST_HOTELS[0];
+  // Fetch hotel by id from API
+  const { data: hotel, isLoading, isError } = useQuery({
+    queryKey: ['hotel-detail', id],
+    queryFn: () => getHotelById(id || ''),
+    enabled: !!id,
+  });
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={BOOKING_COLORS.PRIMARY} />
+        <Text style={styles.loadingText}>Đang tải...</Text>
+      </View>
+    );
+  }
+
+  if (isError || !hotel) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.errorText}>Không tìm thấy khách sạn</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -63,7 +92,7 @@ export default function HotelDetailScreen(): React.JSX.Element {
         {/* Main Image */}
         <View style={[styles.imageContainer, { width }]}>
           <ExpoImage
-            source={{ uri: hotel.imageUrl }}
+            source={{ uri: hotel.imageUrl || 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400' }}
             style={styles.mainImage}
             contentFit="cover"
             transition={200}
@@ -75,16 +104,16 @@ export default function HotelDetailScreen(): React.JSX.Element {
           <View style={styles.ratingRow}>
             <View style={styles.ratingBadge}>
               <Ionicons name="star" size={16} color={BOOKING_COLORS.RATING} />
-              <Text style={styles.ratingText}>{hotel.rating}</Text>
+              <Text style={styles.ratingText}>{hotel.rating || 0}</Text>
             </View>
-            <Text style={styles.reviews}>({hotel.reviewCount} Reviews)</Text>
+            <Text style={styles.reviews}>(0 Reviews)</Text>
           </View>
 
-          <Text style={styles.hotelName}>{hotel.name}</Text>
+          <Text style={styles.hotelName}>{hotel.hotelName}</Text>
 
           <View style={styles.locationRow}>
             <Ionicons name="location-outline" size={16} color={BOOKING_COLORS.TEXT_SECONDARY} />
-            <Text style={styles.location}>{hotel.location}</Text>
+            <Text style={styles.location}>{hotel.address}</Text>
           </View>
 
           {/* Overview */}
@@ -171,10 +200,10 @@ export default function HotelDetailScreen(): React.JSX.Element {
       {/* Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
         <View style={styles.priceContainer}>
-          <Text style={styles.priceLabel}>${hotel.price}/night</Text>
+          <Text style={styles.priceLabel}>${hotel.pricePerNight || 0}/night</Text>
         </View>
         <TouchableOpacity style={styles.selectDateButton}>
-          <Text style={styles.selectDateText}>Select Date</Text>
+          <Text style={styles.selectDateText}>Chọn ngày</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -359,6 +388,34 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   selectDateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: BOOKING_COLORS.BACKGROUND,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: BOOKING_COLORS.BACKGROUND,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: BOOKING_COLORS.TEXT_SECONDARY,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: BOOKING_COLORS.TEXT_PRIMARY,
+    marginBottom: 16,
+  },
+  backButton: {
+    backgroundColor: BOOKING_COLORS.PRIMARY,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: BOOKING_COLORS.BACKGROUND,

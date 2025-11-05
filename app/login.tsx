@@ -118,8 +118,8 @@ export default function LoginScreen(): React.JSX.Element {
         <LogoHeader />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Let's get you Login!</Text>
-          <Text style={styles.subtitle}>Enter your information below</Text>
+          <Text style={styles.title}>Đăng nhập ngay!</Text>
+          <Text style={styles.subtitle}>Nhập thông tin của bạn bên dưới</Text>
 
           <View style={styles.socialButtons}>
             <SocialButton provider="google" onPress={() => handleSocialLogin('google')} />
@@ -129,13 +129,13 @@ export default function LoginScreen(): React.JSX.Element {
 
           <View style={styles.separator}>
             <View style={styles.separatorLine} />
-            <Text style={styles.separatorText}>Or login with</Text>
+            <Text style={styles.separatorText}>Hoặc đăng nhập bằng</Text>
             <View style={styles.separatorLine} />
           </View>
 
           <AuthInput
-            label="Username"
-            placeholder="Enter Username"
+            label="Tên đăng nhập"
+            placeholder="Nhập tên đăng nhập"
             value={username}
             onChangeText={setUsername}
             keyboardType="default"
@@ -143,8 +143,8 @@ export default function LoginScreen(): React.JSX.Element {
           />
 
           <AuthInput
-            label="Password"
-            placeholder="Enter Password"
+            label="Mật khẩu"
+            placeholder="Nhập mật khẩu"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -154,20 +154,20 @@ export default function LoginScreen(): React.JSX.Element {
           <TouchableOpacity
             onPress={() => router.push('/forgot-password')}
             style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
           </TouchableOpacity>
 
           <AuthButton
-            title="Login"
+            title="Đăng nhập"
             onPress={handleLogin}
             disabled={!isFormValid || loginMutation.isPending}
             loading={loginMutation.isPending}
           />
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={styles.footerText}>Chưa có tài khoản? </Text>
             <TouchableOpacity onPress={() => router.push('/register')}>
-              <Text style={styles.footerLink}>Register Now</Text>
+              <Text style={styles.footerLink}>Đăng ký ngay</Text>
             </TouchableOpacity>
           </View>
         </View>

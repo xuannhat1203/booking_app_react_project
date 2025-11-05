@@ -1,11 +1,11 @@
+import { sendRequestCode, verifyCode } from '@/apis/authApi';
 import { AuthButton } from '@/components/auth/button';
 import { AUTH_COLORS } from '@/constants/auth';
-import { sendRequestCode, verifyCode } from '@/apis/authApi';
 import { useToast } from '@/hooks/use-toast';
-import { useMutation } from '@tanstack/react-query';
 import { sanitizeErrorMessage } from '@/utils/errorHandler';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -22,53 +22,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const OTP_LENGTH = 6;
+const OTP_EXPIRE_TIME = 60; 
 
 export default function EnterOTPScreen(): React.JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { showSuccess, showError, showInfo, ToastComponent } = useToast();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [timeLeft, setTimeLeft] = useState<number>(52);
+  const [timeLeft, setTimeLeft] = useState<number>(OTP_EXPIRE_TIME);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [email, setEmail] = useState<string>('');
-
-  // Mutation để verify OTP
-  const verifyOTPMutation = useMutation({
-    mutationFn: ({ emailToVerify, code }: { emailToVerify: string; code: string }) =>
-      verifyCode(emailToVerify, code),
-    onSuccess: () => {
-      showSuccess('OTP verified successfully!');
-      setTimeout(() => {
-        router.push('/enter-new-password');
-      }, 1000);
-    },
-    onError: (error: any) => {
-      const errorMessage = sanitizeErrorMessage(error);
-      showError(errorMessage);
-    },
-  });
-
-  // Mutation để resend OTP
-  const resendOTPMutation = useMutation({
-    mutationFn: (emailToSend: string) => sendRequestCode(emailToSend),
-    onSuccess: () => {
-      showSuccess('OTP code has been resent');
-      setTimeLeft(52);
-      setOtp(Array(OTP_LENGTH).fill(''));
-      inputRefs.current[0]?.focus();
-    },
-    onError: (error: any) => {
-      const errorMessage = sanitizeErrorMessage(error);
-      showError(errorMessage);
-    },
-  });
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
   useEffect(() => {
     const getEmail = async () => {
       try {
@@ -80,10 +43,42 @@ export default function EnterOTPScreen(): React.JSX.Element {
     };
     getEmail();
   }, []);
-
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const verifyOTPMutation = useMutation({
+    mutationFn: ({ emailToVerify, code }: { emailToVerify: string; code: string }) =>
+      verifyCode(emailToVerify, code),
+    onSuccess: async () => {
+      showSuccess('Xác thực OTP thành công!');
+      await AsyncStorage.setItem('otpCode', otp.join(''));
+      setTimeout(() => {
+        router.push('/enter-new-password');
+      }, 1000);
+    },
+    onError: (error: any) => {
+      const errorMessage = sanitizeErrorMessage(error);
+      showError(errorMessage);
+    },
+  });
+  const resendOTPMutation = useMutation({
+    mutationFn: (emailToSend: string) => sendRequestCode(emailToSend),
+    onSuccess: () => {
+      showSuccess('Mã OTP mới đã được gửi lại!');
+      setTimeLeft(OTP_EXPIRE_TIME);
+      setOtp(Array(OTP_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
+    },
+    onError: (error: any) => {
+      const errorMessage = sanitizeErrorMessage(error);
+      showError(errorMessage);
+    },
+  });
   const handleOtpChange = (value: string, index: number): void => {
     if (value.length > 1) return;
-
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
@@ -98,23 +93,20 @@ export default function EnterOTPScreen(): React.JSX.Element {
       inputRefs.current[index - 1]?.focus();
     }
   };
-
   const handleVerify = (): void => {
     const otpCode = otp.join('');
     if (otpCode.length !== OTP_LENGTH) {
       showError('Vui lòng nhập đầy đủ mã OTP');
       return;
     }
-    
+
     if (!email) {
       showError('Không tìm thấy email. Vui lòng thử lại.');
       return;
     }
 
-    // Gọi API verify OTP
     verifyOTPMutation.mutate({ emailToVerify: email, code: otpCode });
   };
-
   const handleResend = (): void => {
     if (timeLeft > 0) {
       showInfo(`Vui lòng đợi ${timeLeft} giây trước khi gửi lại`);
@@ -126,10 +118,8 @@ export default function EnterOTPScreen(): React.JSX.Element {
       return;
     }
 
-    // Gọi API resend OTP
     resendOTPMutation.mutate(email);
   };
-
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -137,6 +127,11 @@ export default function EnterOTPScreen(): React.JSX.Element {
   };
 
   const isOtpComplete = otp.every((digit) => digit !== '');
+  useEffect(() => {
+    return () => {
+      inputRefs.current = [];
+    };
+  }, []);
 
   return (
     <KeyboardAvoidingView

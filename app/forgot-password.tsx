@@ -1,13 +1,10 @@
-import { AuthButton } from '@/components/auth/button';
-import { AuthInput } from '@/components/auth/input';
-import { AUTH_COLORS } from '@/constants/auth';
 import { sendRequestCode } from '@/apis/authApi';
+import { AuthButton } from '@/components/auth/button';
+import { AUTH_COLORS } from '@/constants/auth';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
-import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -32,83 +29,37 @@ interface ContactOption {
 export default function ForgotPasswordScreen(): React.JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { showError, showWarning, showSuccess, ToastComponent } = useToast();
   const [selectedOption, setSelectedOption] = useState<string>('1');
   const [email, setEmail] = useState<string>('');
-  const [inputEmail, setInputEmail] = useState<string>('');
-  const [showEmailInput, setShowEmailInput] = useState<boolean>(false);
 
   useEffect(() => {
-    const getStoredData = async () => {
+    const getEmail = async () => {
       try {
-        // Try to get email first
         const storedEmail = await AsyncStorage.getItem('email');
-        if (storedEmail) {
-          setEmail(storedEmail);
-          setInputEmail(storedEmail);
-        } else {
-          // If no email, try username
-          const storedUsername = await AsyncStorage.getItem('username');
-          if (storedUsername) {
-            // Check if username is an email
-            if (storedUsername.includes('@')) {
-              setEmail(storedUsername);
-              setInputEmail(storedUsername);
-            } else {
-              // Show input field if username is not an email
-              setShowEmailInput(true);
-            }
-          } else {
-            // No data stored, show input field
-            setShowEmailInput(true);
-          }
-        }
+        if (storedEmail) setEmail(storedEmail);
       } catch (error) {
-        if (__DEV__) console.error('Error retrieving data from storage:', error);
-        setShowEmailInput(true);
+        if (__DEV__) console.error('Error retrieving email from storage:', error);
       }
     };
-    getStoredData();
+    getEmail();
   }, []);
 
-  // Mutation để gửi OTP
-  const sendOTPMutation = useMutation({
-    mutationFn: (emailToSend: string) => sendRequestCode(emailToSend),
-    onSuccess: () => {
-      showSuccess('OTP đã được gửi thành công!');
-      // Lưu phương thức đã chọn để dùng cho resend
-      AsyncStorage.setItem('otpMethod', selectedOption).catch(() => {});
-      setTimeout(() => {
-        router.push('/enter-otp');
-      }, 1000);
+  const sendRequestOtp = useMutation({
+    mutationFn: (email: string) => sendRequestCode(email),
+    onSuccess: (data) => {
+      if (__DEV__) console.log('OTP request sent successfully:', data);
+      router.push('/enter-otp');
     },
     onError: (error: any) => {
-      const errorMessage = sanitizeErrorMessage(error);
-      showError(errorMessage);
+      if (__DEV__) console.error('Error sending OTP request:', error);
     },
   });
 
   const handleContinue = (): void => {
-    // Validate email if SMS is not selected or email input is shown
-    if (selectedOption === '2' || showEmailInput) {
-      const emailToUse = showEmailInput ? inputEmail : email;
-      if (!emailToUse || !emailToUse.includes('@')) {
-        showWarning('Vui lòng nhập email hợp lệ');
-        return;
-      }
-      // Save email for future use
-      const trimmedEmail = emailToUse.trim();
-      AsyncStorage.setItem('email', trimmedEmail).catch(() => {});
-      // Gửi OTP qua email
-      sendOTPMutation.mutate(trimmedEmail);
-    } else {
-      // SMS - cần số điện thoại (hiện tại đang hardcode)
-      // TODO: Cần lấy số điện thoại từ user hoặc từ profile
-      showWarning('Tính năng gửi OTP qua SMS đang được phát triển');
-    }
+    sendRequestOtp.mutate(email);
   };
 
-  // 📱 Danh sách lựa chọn (số điện thoại cố định, email thật)
+
   const CONTACT_OPTIONS: ContactOption[] = [
     {
       id: '1',
@@ -121,7 +72,7 @@ export default function ForgotPasswordScreen(): React.JSX.Element {
       id: '2',
       type: 'email',
       label: 'Send OTP via Email',
-      value: showEmailInput ? (inputEmail || 'Nhập email của bạn') : (email || 'Loading...'),
+      value: email || 'Loading...',
       icon: 'mail-outline',
     },
   ];
@@ -131,7 +82,6 @@ export default function ForgotPasswordScreen(): React.JSX.Element {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="dark-content" backgroundColor={AUTH_COLORS.BACKGROUND} />
-      {ToastComponent}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={AUTH_COLORS.TEXT_PRIMARY} />
@@ -168,12 +118,7 @@ export default function ForgotPasswordScreen(): React.JSX.Element {
                   styles.optionCard,
                   selectedOption === option.id && styles.optionCardSelected,
                 ]}
-                onPress={() => {
-                  setSelectedOption(option.id);
-                  if (option.id === '2' && !email) {
-                    setShowEmailInput(true);
-                  }
-                }}>
+                onPress={() => setSelectedOption(option.id)}>
                 <View style={styles.optionContent}>
                   <View
                     style={[
@@ -198,19 +143,7 @@ export default function ForgotPasswordScreen(): React.JSX.Element {
                       ]}>
                       {option.label}
                     </Text>
-                    {selectedOption === option.id && option.id === '2' && showEmailInput ? (
-                      <View style={styles.emailInputWrapper}>
-                        <AuthInput
-                          placeholder="Nhập email của bạn"
-                          value={inputEmail}
-                          onChangeText={setInputEmail}
-                          keyboardType="email-address"
-                          leftIcon="mail-outline"
-                        />
-                      </View>
-                    ) : (
-                      <Text style={styles.optionValue}>{option.value}</Text>
-                    )}
+                    <Text style={styles.optionValue}>{option.value}</Text>
                   </View>
                 </View>
                 {selectedOption === option.id && (
@@ -222,12 +155,7 @@ export default function ForgotPasswordScreen(): React.JSX.Element {
             ))}
           </View>
 
-          <AuthButton
-            title="Continue"
-            onPress={handleContinue}
-            loading={sendOTPMutation.isPending}
-            disabled={sendOTPMutation.isPending}
-          />
+          <AuthButton title="Continue" onPress={handleContinue} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -337,9 +265,5 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     marginLeft: 12,
-  },
-  emailInputWrapper: {
-    marginTop: 8,
-    width: '100%',
   },
 });

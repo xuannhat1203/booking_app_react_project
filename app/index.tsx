@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Text, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Platform, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 const SPLASH_DURATION = 2000;
 
@@ -16,8 +16,6 @@ export default function SplashScreen(): React.JSX.Element {
         router.replace('/onboarding');
       }, SPLASH_DURATION);
     };
-
-    // Đợi một chút để đảm bảo component đã mount hoàn toàn
     const timer = setTimeout(() => {
       navigateToOnboarding();
     }, 100);

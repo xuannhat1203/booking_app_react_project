@@ -24,6 +24,6 @@ export interface GenderOption {
 }
 
 export const GENDER_OPTIONS: GenderOption[] = [
-  { label: 'Male', value: 'male' },
-  { label: 'Female', value: 'female' },
+  { label: 'Nam', value: 'male' },
+  { label: 'Nữ', value: 'female' },
 ] as const;

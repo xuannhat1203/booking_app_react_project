@@ -1,62 +1,105 @@
+import { register } from '@/apis/authApi';
+import { AuthButton } from '@/components/auth/button';
+import { AuthInput } from '@/components/auth/input';
+import { LogoHeader } from '@/components/auth/logo-header';
+import { AUTH_COLORS } from '@/constants/auth';
+import { useToast } from '@/hooks/use-toast';
+import { setAccessToken } from '@/utils/axiosInstance';
+import { sanitizeErrorMessage } from '@/utils/errorHandler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMutation } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LogoHeader } from '@/components/auth/logo-header';
-import { AuthInput } from '@/components/auth/input';
-import { AuthButton } from '@/components/auth/button';
-import { AUTH_COLORS, GENDER_OPTIONS } from '@/constants/auth';
-import { useToast } from '@/hooks/use-toast';
-import { sanitizeErrorMessage } from '@/utils/errorHandler';
 
 export default function RegisterScreen(): React.JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { showSuccess, showError, showWarning, showInfo, ToastComponent } = useToast();
-  const [name, setName] = useState<string>('Curtis Weaver');
-  const [email, setEmail] = useState<string>('curtis.weaver@example.com');
-  const [mobile, setMobile] = useState<string>('(209) 555-0104');
-  const [dateOfBirth, setDateOfBirth] = useState<string>('August 14, 2023');
-  const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [username, setUsername] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
 
-  const handleRegister = async (): Promise<void> => {
+  // Mutation để đăng ký
+  const registerMutation = useMutation({
+    mutationFn: (registerData: {
+      username: string;
+      email: string;
+      password: string;
+    }) => register(registerData),
+    onSuccess: async (data) => {
+      try {
+        // Lưu token nếu có
+        const token = data?.data?.token || data?.data?.accessToken || data?.token;
+        if (token) {
+          await AsyncStorage.setItem('accessToken', token);
+          setAccessToken(token);
+          const refreshToken = data?.data?.refreshToken || data?.refreshToken;
+          if (refreshToken) {
+            await AsyncStorage.setItem('refreshToken', refreshToken);
+          }
+        }
+        
+        // Lưu email để dùng cho forgot password
+        await AsyncStorage.setItem('email', email.trim());
+        
+        showSuccess('Đăng ký thành công!');
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 1500);
+      } catch (storageError) {
+        if (__DEV__) {
+          console.error('Error saving token:', storageError);
+        }
+        showError('Không thể lưu thông tin đăng nhập. Vui lòng thử lại.');
+      }
+    },
+    onError: (error: any) => {
+      // Debug log (chỉ trong dev mode)
+      if (__DEV__) {
+        console.log('Register error details:', {
+          status: error?.response?.status,
+          data: error?.response?.data,
+          message: error?.message,
+          userMessage: error?.userMessage,
+        });
+      }
+      const errorMessage = sanitizeErrorMessage(error);
+      showError(errorMessage);
+    },
+  });
+
+  const handleRegister = (): void => {
     // Validation
-    if (!name.trim()) {
-      showWarning('Please enter your name');
+    if (!username.trim()) {
+      showWarning('Vui lòng nhập tên đăng nhập');
       return;
     }
     if (!email.trim() || !email.includes('@')) {
-      showWarning('Please enter a valid email address');
+      showWarning('Vui lòng nhập địa chỉ email hợp lệ');
       return;
     }
-    if (!mobile.trim()) {
-      showWarning('Please enter your mobile number');
+    if (!password.trim() || password.length < 6) {
+      showWarning('Mật khẩu phải có ít nhất 6 ký tự');
       return;
     }
 
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      showSuccess('Registration successful!');
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 1500);
-    }, 1000);
-  };
-
-  const handleDatePress = (): void => {
-    showInfo('Date picker will be implemented soon');
+    // Gọi API đăng ký
+    registerMutation.mutate({
+      username: username.trim(),
+      email: email.trim(),
+      password: password.trim(),
+    });
   };
 
   return (
@@ -72,78 +115,47 @@ export default function RegisterScreen(): React.JSX.Element {
         <LogoHeader />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Register Now!</Text>
-          <Text style={styles.subtitle}>Enter your information below</Text>
+          <Text style={styles.title}>Đăng ký ngay!</Text>
+          <Text style={styles.subtitle}>Nhập thông tin của bạn bên dưới</Text>
 
           <AuthInput
-            label="Name"
-            placeholder="Enter Name"
-            value={name}
-            onChangeText={setName}
+            label="Tên đăng nhập"
+            placeholder="Nhập tên đăng nhập"
+            value={username}
+            onChangeText={setUsername}
+            keyboardType="default"
+            leftIcon="person-outline"
           />
 
           <AuthInput
-            label="Email Address"
-            placeholder="Enter Email"
+            label="Địa chỉ email"
+            placeholder="Nhập email"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
+            leftIcon="mail-outline"
           />
 
           <AuthInput
-            label="Mobile Number"
-            placeholder="Enter Mobile Number"
-            value={mobile}
-            onChangeText={setMobile}
-            keyboardType="phone-pad"
+            label="Mật khẩu"
+            placeholder="Nhập mật khẩu"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            leftIcon="lock-closed-outline"
           />
 
-          <AuthInput
-            label="Date of Birth"
-            placeholder="Select Date"
-            value={dateOfBirth}
-            onChangeText={setDateOfBirth}
-            onPress={handleDatePress}
-            editable={false}
-            rightIcon="calendar-outline"
+          <AuthButton
+            title="Đăng ký"
+            onPress={handleRegister}
+            loading={registerMutation.isPending}
+            disabled={registerMutation.isPending}
           />
-
-          <View style={styles.genderContainer}>
-            <Text style={styles.label}>Gender</Text>
-            <View style={styles.genderOptions}>
-              {GENDER_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.genderOption,
-                    gender === option.value && styles.genderOptionSelected,
-                  ]}
-                  onPress={() => setGender(option.value)}>
-                  <View
-                    style={[
-                      styles.radioButton,
-                      gender === option.value && styles.radioButtonSelected,
-                    ]}>
-                    {gender === option.value && <View style={styles.radioButtonInner} />}
-                  </View>
-                  <Text
-                    style={[
-                      styles.genderText,
-                      gender === option.value && styles.genderTextSelected,
-                    ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <AuthButton title="Register" onPress={handleRegister} loading={loading} />
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already a member? </Text>
+            <Text style={styles.footerText}>Đã có tài khoản? </Text>
             <TouchableOpacity onPress={() => router.push('/login')}>
-              <Text style={styles.footerLink}>Login</Text>
+              <Text style={styles.footerLink}>Đăng nhập</Text>
             </TouchableOpacity>
           </View>
         </View>

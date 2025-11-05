@@ -1,22 +1,25 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  StatusBar,
-  Modal,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { AuthInput } from '@/components/auth/input';
+import { resetPassword } from '@/apis/authApi';
 import { AuthButton } from '@/components/auth/button';
+import { AuthInput } from '@/components/auth/input';
 import { AUTH_COLORS } from '@/constants/auth';
 import { useToast } from '@/hooks/use-toast';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMutation } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function EnterNewPasswordScreen(): React.JSX.Element {
   const router = useRouter();
@@ -25,9 +28,38 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [email, setEmail] = useState<string>('');
+  const [otpCode, setOtpCode] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
-  const handleSave = async (): Promise<void> => {
+  useEffect(() => {
+    const getStoredData = async () => {
+      try {
+        const storedEmail = await AsyncStorage.getItem('email');
+        const storedOtp = await AsyncStorage.getItem('otpCode'); // dùng cùng key với màn OTP
+        if (storedEmail) setEmail(storedEmail);
+        if (storedOtp) setOtpCode(storedOtp);
+      } catch (error) {
+        if (__DEV__) console.error('Error retrieving data from storage:', error);
+      }
+    };
+    getStoredData();
+  }, []);
+  const changePassword = useMutation({
+    mutationFn: ({ email, newPassword, otp }: { email: string; newPassword: string; otp: string }) =>
+      resetPassword(email, newPassword, otp),
+    onSuccess: () => {
+      setLoading(false);
+      showSuccess('Password reset successfully!');
+      setShowSuccessModal(true);
+    },
+    onError: (error: any) => {
+      setLoading(false);
+      showError(error?.message || 'Failed to reset password');
+    },
+  });
+
+  const handleSave = (): void => {
     if (password.length < 6) {
       showWarning('Password must be at least 6 characters');
       return;
@@ -37,12 +69,13 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
       return;
     }
 
+    if (!email || !otpCode) {
+      showError('Missing email or OTP, please try again');
+      return;
+    }
+
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      setShowSuccessModal(true);
-    }, 1000);
+    changePassword.mutate({ email, newPassword: password, otp: otpCode });
   };
 
   const handleBackToHome = (): void => {
@@ -71,7 +104,7 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
           keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <Text style={styles.title}>Enter New Password</Text>
-            <Text style={styles.subtitle}>Please enter new password</Text>
+            <Text style={styles.subtitle}>Please enter your new password</Text>
 
             <View style={styles.illustration}>
               <View style={styles.illustrationPlaceholder}>
@@ -103,17 +136,17 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
               leftIcon="lock-closed-outline"
             />
 
-
             <AuthButton
               title="Save"
               onPress={handleSave}
-              disabled={!isFormValid}
+              disabled={!isFormValid || loading}
               loading={loading}
             />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* ✅ Modal khi reset thành công */}
       <Modal
         visible={showSuccessModal}
         transparent
@@ -133,7 +166,7 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
               </View>
             </View>
 
-            <Text style={styles.successTitle}>Password Update Successfully</Text>
+            <Text style={styles.successTitle}>Password Updated Successfully</Text>
             <Text style={styles.successSubtitle}>
               Your password has been updated successfully
             </Text>
@@ -147,26 +180,11 @@ export default function EnterNewPasswordScreen(): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AUTH_COLORS.BACKGROUND,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  backButton: {
-    padding: 8,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 40,
-  },
-  content: {
-    paddingHorizontal: 24,
-  },
+  container: { flex: 1, backgroundColor: AUTH_COLORS.BACKGROUND },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+  backButton: { padding: 8 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  content: { paddingHorizontal: 24 },
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -181,28 +199,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  illustration: {
-    alignItems: 'center',
-    marginBottom: 40,
-    minHeight: 200,
-  },
-  illustrationPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  shieldIcon: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-  },
-  errorText: {
-    fontSize: 12,
-    color: AUTH_COLORS.ERROR,
-    marginTop: -12,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
+  illustration: { alignItems: 'center', marginBottom: 40, minHeight: 200 },
+  illustrationPlaceholder: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  shieldIcon: { position: 'absolute', top: -10, right: -10 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -218,33 +217,18 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
     ...Platform.select({
-      android: {
-        elevation: 8,
-      },
+      android: { elevation: 8 },
       ios: {
         shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 4,
-        },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
       },
     }),
   },
-  successIllustration: {
-    marginBottom: 24,
-  },
-  successIllustrationPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  phoneIcon: {
-    position: 'absolute',
-    bottom: -10,
-    right: -10,
-  },
+  successIllustration: { marginBottom: 24 },
+  successIllustrationPlaceholder: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  phoneIcon: { position: 'absolute', bottom: -10, right: -10 },
   successTitle: {
     fontSize: 24,
     fontWeight: '700',

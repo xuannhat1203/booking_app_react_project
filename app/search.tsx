@@ -12,34 +12,70 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { HotelCard } from '@/components/booking/hotel-card';
-import { BOOKING_COLORS, NEARBY_HOTELS, Hotel } from '@/constants/booking';
+import { BOOKING_COLORS, Hotel, Room } from '@/constants/booking';
+import { getAllRooms } from '@/apis/roomApi';
+import { useQuery } from '@tanstack/react-query';
 
-const SEARCH_HOTELS: Hotel[] = [
-  {
-    id: '5',
-    name: 'Paradise Mint',
-    location: 'Mumbai, Maharashtra',
-    price: 120,
-    rating: 4.0,
-    reviewCount: 115,
-    imageUrl: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400',
-    isFavorite: false,
-  },
-  ...NEARBY_HOTELS,
-];
+// Helper function để map Room sang Hotel format (theo interface Hotel trong constants/booking.ts)
+const mapRoomToHotel = (room: Room): Hotel => ({
+  id: Number(room.id) || 0,
+  roomNumber: room.roomNumber,
+  type: room.type as any, // RoomType enum
+  pricePerNight: room.pricePerNight,
+  available: room.available,
+  capacity: room.capacity,
+  hotelId: Number(room.hotelId) || 0,
+  hotelName: room.hotelName,
+  imageUrl: room.imageUrl,
+  rating: 0,
+  address: room.hotelName, // Sử dụng hotelName làm address
+});
 
 export default function SearchScreen(): React.JSX.Element {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState<string>('');
-  const [hotels, setHotels] = useState<Hotel[]>(SEARCH_HOTELS);
+  
+  // Fetch rooms từ API
+  const { data: roomsData, isLoading } = useQuery({
+    queryKey: ['search-rooms'],
+    queryFn: getAllRooms,
+  });
 
-  const toggleFavorite = (hotelId: string): void => {
-    setHotels(
-      hotels.map((hotel) =>
-        hotel.id === hotelId ? { ...hotel, isFavorite: !hotel.isFavorite } : hotel
-      )
-    );
+  // Map rooms sang Hotel format
+  const hotels: Hotel[] = roomsData && Array.isArray(roomsData)
+    ? roomsData.map((room: any) => {
+        const roomData: Room = {
+          id: String(room.id || ''),
+          roomNumber: room.roomNumber || '',
+          type: room.type || '',
+          pricePerNight: room.pricePerNight
+            ? (typeof room.pricePerNight === 'number'
+                ? room.pricePerNight
+                : parseFloat(String(room.pricePerNight)))
+            : 0,
+          available: Boolean(room.available ?? true),
+          capacity: room.capacity || 0,
+          hotelId: String(room.hotelId || ''),
+          hotelName: room.hotelName || '',
+          imageUrl: room.imageUrl || 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400',
+        };
+        return mapRoomToHotel(roomData);
+      })
+    : [];
+
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
+
+  const toggleFavorite = (hotelId: number): void => {
+    setFavoriteIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(hotelId)) {
+        newSet.delete(hotelId);
+      } else {
+        newSet.add(hotelId);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -84,20 +120,44 @@ export default function SearchScreen(): React.JSX.Element {
           {/* Recent search items would go here */}
         </View>
 
-        {/* Nearby Hotels */}
+        {/* Search Results / Nearby Rooms */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nearby your location</Text>
-          <View style={styles.hotelsList}>
-            {hotels.map((hotel) => (
-              <HotelCard
-                key={hotel.id}
-                hotel={hotel}
-                variant="vertical"
-                onPress={() => router.push(`/hotel-detail/${hotel.id}`)}
-                onFavoritePress={() => toggleFavorite(hotel.id)}
-              />
-            ))}
-          </View>
+          <Text style={styles.sectionTitle}>
+            {searchText ? 'Kết quả tìm kiếm' : 'Phòng gần bạn'}
+          </Text>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Đang tải...</Text>
+            </View>
+          ) : hotels.length > 0 ? (
+            <View style={styles.hotelsList}>
+              {hotels
+                .filter((hotel) =>
+                  searchText
+                    ? hotel.hotelName.toLowerCase().includes(searchText.toLowerCase()) ||
+                      hotel.address.toLowerCase().includes(searchText.toLowerCase()) ||
+                      hotel.roomNumber.toLowerCase().includes(searchText.toLowerCase())
+                    : true
+                )
+                .map((hotel) => (
+                  <HotelCard
+                    key={hotel.id}
+                    hotel={hotel}
+                    variant="vertical"
+                    onPress={() => {
+                      router.push(`/hotel-detail/${hotel.hotelId}`);
+                    }}
+                    onFavoritePress={() => toggleFavorite(hotel.id)}
+                  />
+                ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {searchText ? 'Không tìm thấy phòng nào' : 'Không có phòng nào'}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -177,5 +237,23 @@ const styles = StyleSheet.create({
   },
   hotelsList: {
     gap: 16,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: BOOKING_COLORS.TEXT_SECONDARY,
+  },
+  emptyContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: BOOKING_COLORS.TEXT_SECONDARY,
   },
 });
